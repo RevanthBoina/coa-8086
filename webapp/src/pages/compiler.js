@@ -1,6 +1,7 @@
 import React, { useState, useContext, useRef, useEffect } from "react";
 import { CustomThemeContext } from "../themes/CustomThemeProvider";
 import { useEmulator } from "../context/EmulatorContext";
+import ExamplesDropdown from "../components/ExamplesDropdown";
 // Ace Editor
 import AceEditor from "react-ace";
 import "ace-builds/src-noconflict/mode-assembly_x86";
