@@ -5,10 +5,57 @@ use lib8086::InterpreterContext;
 use lib8086::LexerHelper;
 use lib8086::PreprocessorOutput;
 use lib8086::VM;
-use lib8086::{Interpreter, State};
+use lib8086::{get_flag_state, Flags, Interpreter, State};
+use serde::Serialize;
 use std::collections::HashMap;
 use std::fmt::Write;
 use wasm_bindgen::prelude::*;
+
+#[derive(Serialize, Clone, Debug)]
+pub struct MemChange {
+    pub address: u32,
+    pub value: u8,
+}
+
+#[allow(non_snake_case)]
+#[derive(Serialize, Clone, Debug)]
+pub struct RegistersSnapshot {
+    pub AX: u16,
+    pub BX: u16,
+    pub CX: u16,
+    pub DX: u16,
+    pub SI: u16,
+    pub DI: u16,
+    pub SP: u16,
+    pub BP: u16,
+    pub CS: u16,
+    pub DS: u16,
+    pub SS: u16,
+    pub ES: u16,
+    pub IP: u16,
+}
+
+#[allow(non_snake_case)]
+#[derive(Serialize, Clone, Debug)]
+pub struct FlagsSnapshot {
+    pub CF: bool,
+    pub PF: bool,
+    pub AF: bool,
+    pub ZF: bool,
+    pub SF: bool,
+    pub TF: bool,
+    pub IF: bool,
+    pub DF: bool,
+    pub OF: bool,
+}
+
+#[derive(Serialize, Clone, Debug)]
+pub struct StateSnapshot {
+    pub instruction: String,
+    pub registers: RegistersSnapshot,
+    pub flags: FlagsSnapshot,
+    pub changed_memory: Vec<MemChange>,
+}
 
 #[wasm_bindgen]
 pub struct WebDriver {
@@ -21,6 +68,9 @@ pub struct WebDriver {
     processed_code: PreprocessorOutput,
     context: InterpreterContext,
     vm: VM,
+    prev_memory: Vec<u8>,
+    last_instruction: String,
+    last_changed_memory: Vec<MemChange>,
 }
 
 #[wasm_bindgen]
@@ -43,13 +93,15 @@ impl InterpreterResult {
 pub fn new_webdriver(
     idx: usize,
     line: usize,
-    vm: VM,
+    mut vm: VM,
     input: String,
     sm: HashMap<usize, usize>,
     lh: LexerHelper,
     out: PreprocessorOutput,
     ctx: InterpreterContext,
 ) -> WebDriver {
+    let initial_memory = vm.mem.to_vec();
+    vm.arch.ip = idx as u16;
     return WebDriver {
         line: line,
         idx: idx,
@@ -60,13 +112,22 @@ pub fn new_webdriver(
         vm: vm,
         source_map: sm,
         interpreter: Interpreter::new(),
+        prev_memory: initial_memory,
+        last_instruction: String::new(),
+        last_changed_memory: Vec::new(),
     };
 }
 
 #[wasm_bindgen]
 impl WebDriver {
     pub fn next(&mut self) -> Result<InterpreterResult, JsValue> {
-        match self.interpreter.parse(
+        let executed_inst = if self.idx < self.processed_code.code.len() {
+            self.processed_code.code[self.idx].clone()
+        } else {
+            String::new()
+        };
+
+        let res = match self.interpreter.parse(
             self.idx,
             &mut self.vm,
             &mut self.context,
@@ -82,29 +143,28 @@ impl WebDriver {
             Ok(s) => match s {
                 State::HALT => {
                     // stop and return
-                    let res = InterpreterResult {
+                    InterpreterResult {
                         halt: Some(true),
                         int: None,
                         ah: None,
-                    };
-                    return Ok(res);
+                    }
                 }
                 State::PRINT => {
                     self.idx += 1;
                     self.set_line();
-                    return Ok(InterpreterResult::new());
+                    InterpreterResult::new()
                 }
                 State::JMP(next) => {
                     // jump to next commnand
                     self.idx = next;
                     self.set_line();
-                    return Ok(InterpreterResult::new());
+                    InterpreterResult::new()
                 }
                 State::NEXT => {
                     // we can do this without check, as we have inserted a 'hlt' in the code at end
                     self.idx += 1;
                     self.set_line();
-                    return Ok(InterpreterResult::new());
+                    InterpreterResult::new()
                 }
                 State::INT(int) => {
                     match int {
@@ -114,6 +174,7 @@ impl WebDriver {
                             let (line, start, end) = get_err_pos(&self.lh, *pos);
                             self.idx += 1;
                             self.set_line();
+                            self.record_step(executed_inst);
                             return Err(JsValue::from(format!(
                                 "Attempt to divide by 0 : int 0 at line {} : {}",
                                 line,
@@ -123,11 +184,11 @@ impl WebDriver {
                         0x3 => {
                             self.idx += 1;
                             self.set_line();
-                            return Ok(InterpreterResult {
+                            InterpreterResult {
                                 halt: None,
                                 int: Some(3),
                                 ah: None,
-                            });
+                            }
                         }
                         0x10 => {
                             // BIOS interrupt
@@ -144,11 +205,11 @@ impl WebDriver {
                             }
                             self.idx += 1;
                             self.set_line();
-                            return Ok(InterpreterResult {
+                            InterpreterResult {
                                 halt: None,
                                 int: Some(10),
                                 ah: Some(ah),
-                            });
+                            }
                         }
                         0x21 => {
                             // DOS interrupts
@@ -165,11 +226,11 @@ impl WebDriver {
                             }
                             self.idx += 1;
                             self.set_line();
-                            return Ok(InterpreterResult {
+                            InterpreterResult {
                                 halt: None,
                                 int: Some(21),
                                 ah: Some(ah),
-                            });
+                            }
                         }
                         _ => {
                             return Err(JsValue::from(format!("Internal Error : Should not have reached here in interrupt parser\nError : int {} not supported",int)));
@@ -177,10 +238,61 @@ impl WebDriver {
                     }
                 }
                 State::REPEAT => {
-                    return Ok(InterpreterResult::new());
+                    InterpreterResult::new()
                 }
             },
-        }
+        };
+
+        self.record_step(executed_inst);
+        Ok(res)
+    }
+
+    fn record_step(&mut self, executed_inst: String) {
+        self.last_instruction = executed_inst;
+        self.vm.arch.ip = self.idx as u16;
+        let changed: Vec<MemChange> = self.vm.mem
+            .iter()
+            .enumerate()
+            .filter(|(i, &v)| v != self.prev_memory[*i])
+            .map(|(i, &v)| MemChange { address: i as u32, value: v })
+            .collect();
+        self.prev_memory.copy_from_slice(self.vm.mem.as_ref());
+        self.last_changed_memory = changed;
+    }
+
+    #[wasm_bindgen]
+    pub fn get_state_snapshot(&self) -> JsValue {
+        let snapshot = StateSnapshot {
+            instruction: self.last_instruction.clone(),
+            registers: RegistersSnapshot {
+                AX: self.vm.arch.ax,
+                BX: self.vm.arch.bx,
+                CX: self.vm.arch.cx,
+                DX: self.vm.arch.dx,
+                SI: self.vm.arch.si,
+                DI: self.vm.arch.di,
+                SP: self.vm.arch.sp,
+                BP: self.vm.arch.bp,
+                CS: self.vm.arch.cs,
+                DS: self.vm.arch.ds,
+                SS: self.vm.arch.ss,
+                ES: self.vm.arch.es,
+                IP: self.vm.arch.ip,
+            },
+            flags: FlagsSnapshot {
+                CF: get_flag_state(self.vm.arch.flag, Flags::CARRY),
+                PF: get_flag_state(self.vm.arch.flag, Flags::PARITY),
+                AF: get_flag_state(self.vm.arch.flag, Flags::AUX_CARRY),
+                ZF: get_flag_state(self.vm.arch.flag, Flags::ZERO),
+                SF: get_flag_state(self.vm.arch.flag, Flags::SIGN),
+                TF: get_flag_state(self.vm.arch.flag, Flags::TRAP),
+                IF: get_flag_state(self.vm.arch.flag, Flags::INTERRUPT),
+                DF: get_flag_state(self.vm.arch.flag, Flags::DIRECTION),
+                OF: get_flag_state(self.vm.arch.flag, Flags::OVERFLOW),
+            },
+            changed_memory: self.last_changed_memory.clone(),
+        };
+        JsValue::from_str(&serde_json::to_string(&snapshot).unwrap())
     }
 
     pub fn get_flags(&self) -> JSFlags {
