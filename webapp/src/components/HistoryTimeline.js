@@ -10,7 +10,7 @@ function toHexByte(val) {
 }
 
 export default function HistoryTimeline() {
-  const { state } = useEmulator();
+  const { state, jumpToStep } = useEmulator();
   const { history = [], currentIndex = -1 } = state || {};
   const timelineRef = useRef(null);
 
@@ -107,7 +107,7 @@ export default function HistoryTimeline() {
                     .map(
                       (c) =>
                         `[0x${c.address.toString(16).toUpperCase().padStart(5, '0')}]=${toHexByte(
-                          c.value
+                          c.after !== undefined ? c.after : c.value
                         )}`
                     )
                     .join(', ')
@@ -117,9 +117,11 @@ export default function HistoryTimeline() {
               <div
                 key={i}
                 className="timeline-entry"
+                onClick={() => jumpToStep && jumpToStep(i)}
                 style={{
                   padding: '8px 10px',
                   borderRadius: '4px',
+                  cursor: 'pointer',
                   backgroundColor: isActive
                     ? 'var(--active-bg, rgba(52, 152, 219, 0.15))'
                     : 'var(--entry-bg, rgba(0,0,0,0.02))',

@@ -28,3 +28,133 @@ code {
 	font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
 		monospace;
 }
+
+/* Feature 3 — Register Change Highlighting */
+.reg-changed {
+  animation: regFadeLight 1.2s ease-out forwards;
+}
+
+@keyframes regFadeLight {
+  0%   { background-color: #bfdbfe !important; color: #1e3a5f !important; }
+  100% { background-color: transparent; color: inherit; }
+}
+
+[data-theme="dark"] .reg-changed,
+.dark-theme .reg-changed,
+body.dark .reg-changed {
+  animation: regFadeDark 1.2s ease-out forwards;
+}
+
+@keyframes regFadeDark {
+  0%   { background-color: #1e3a5f !important; color: #93c5fd !important; }
+  100% { background-color: #1e293b !important; color: inherit; }
+}
+
+/* Feature 4 — Flag Change Highlighting */
+.flag-changed {
+  animation: flagFadeLight 1.2s ease-out forwards;
+}
+
+@keyframes flagFadeLight {
+  0%   { background-color: #bfdbfe !important; color: #1e3a5f !important; }
+  100% { background-color: transparent; color: inherit; }
+}
+
+[data-theme="dark"] .flag-changed,
+.dark-theme .flag-changed,
+body.dark .flag-changed {
+  animation: flagFadeDark 1.2s ease-out forwards;
+}
+
+@keyframes flagFadeDark {
+  0%   { background-color: #1e3a5f !important; color: #93c5fd !important; }
+  100% { background-color: #1e293b !important; color: inherit; }
+}
+
+/* Feature 7 — Memory Diff Highlighting */
+.mem-cell {
+  transition: background-color 0.2s ease;
+}
+
+.mem-changed {
+  animation: memFadeLight 1.5s ease-out forwards;
+}
+
+@keyframes memFadeLight {
+  0%   { background-color: #fef3c7 !important; color: #78350f !important; }
+  100% { background-color: transparent; color: inherit; }
+}
+
+[data-theme="dark"] .mem-changed,
+.dark-theme .mem-changed,
+body.dark .mem-changed {
+  animation: memFadeDark 1.5s ease-out forwards;
+}
+
+@keyframes memFadeDark {
+  0%   { background-color: #78350f !important; color: #fef3c7 !important; }
+  100% { background-color: #1e293b !important; color: inherit; }
+}
+
+/* Step Backward Warning Banner */
+.step-back-warning {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #f59e0b;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 4px;
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+[data-theme="dark"] .step-back-warning,
+.dark-theme .step-back-warning,
+body.dark .step-back-warning {
+  background: #78350f;
+  color: #fef3c7;
+  border: 1px solid #b45309;
+}
+
+/* Phase 5 — Full Layout Restructure (2-Column CSS Grid) */
+.emulator-page {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  grid-template-areas:
+    "toolbar    toolbar"
+    "expbar     expbar"
+    "editor     regflags"
+    "history    alupanel"
+    "history    memory";
+  gap: 16px;
+  padding: 12px 16px;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.grid-area-toolbar  { grid-area: toolbar; }
+.grid-area-expbar   { grid-area: expbar; }
+.grid-area-editor   { grid-area: editor; }
+.grid-area-history  { grid-area: history; }
+.grid-area-regflags { grid-area: regflags; }
+.grid-area-alupanel { grid-area: alupanel; }
+.grid-area-memory   { grid-area: memory; }
+
+@media (max-width: 1200px) {
+  .emulator-page {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "toolbar"
+      "expbar"
+      "editor"
+      "regflags"
+      "alupanel"
+      "history"
+      "memory";
+  }
+}
+
+

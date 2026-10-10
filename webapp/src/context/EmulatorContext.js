@@ -28,6 +28,10 @@ function reducer(state, action) {
       if (state.currentIndex >= state.history.length - 1) return state;
       return { ...state, currentIndex: state.currentIndex + 1 };
 
+    case 'JUMP_TO_STEP':
+      if (action.payload < 0 || action.payload >= state.history.length) return state;
+      return { ...state, currentIndex: action.payload };
+
     case 'SET_SPEED':
       return { ...state, speed: action.payload };
 
@@ -51,6 +55,9 @@ export function EmulatorProvider({ children }) {
   const stepForward = () =>
     dispatch({ type: 'STEP_FORWARD' });
 
+  const jumpToStep = (index) =>
+    dispatch({ type: 'JUMP_TO_STEP', payload: index });
+
   const setSpeed = (ms) =>
     dispatch({ type: 'SET_SPEED', payload: ms });
 
@@ -59,7 +66,7 @@ export function EmulatorProvider({ children }) {
 
   return (
     <EmulatorContext.Provider
-      value={{ state, pushSnapshot, stepBack, stepForward,
+      value={{ state, pushSnapshot, stepBack, stepForward, jumpToStep,
                setSpeed, resetHistory }}
     >
       {children}

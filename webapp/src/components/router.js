@@ -17,6 +17,10 @@ function RootRouter() {
     async function load() {
       try {
         const wasm = await import("emulator_8086");
+        if (typeof wasm.default === "function") {
+          const wasmUrl = (process.env.PUBLIC_URL || "") + "/emulator_8086_web_bg.wasm";
+          await wasm.default(wasmUrl);
+        }
         setWasm(wasm);
       } catch (err) {
         console.error(

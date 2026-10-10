@@ -10,6 +10,7 @@ export default function ExamplesDropdown({ onSelectExample }) {
     setSelected(val);
     setLoading(true);
 
+    const label = e.target.options[e.target.selectedIndex]?.text || val;
     try {
       const publicUrl = process.env.PUBLIC_URL || '';
       let res = await fetch(`${publicUrl}/examples/${val}`);
@@ -21,7 +22,7 @@ export default function ExamplesDropdown({ onSelectExample }) {
       }
       const code = await res.text();
       if (onSelectExample) {
-        onSelectExample(code);
+        onSelectExample(code, label);
       }
     } catch (err) {
       console.error('Failed to load example:', err);
@@ -57,7 +58,7 @@ export default function ExamplesDropdown({ onSelectExample }) {
         onChange={handleChange}
         disabled={loading}
         style={{
-          width: '220px',
+          width: '230px',
           padding: '6px 10px',
           fontSize: '13px',
           borderRadius: '4px',
@@ -70,21 +71,21 @@ export default function ExamplesDropdown({ onSelectExample }) {
         <option value="" disabled>
           --Select Example--
         </option>
-        <optgroup label="Basic">
-          <option value="addition.s">Addition</option>
-          <option value="data_transfer.s">Data Transfer</option>
+        <optgroup label="Group 1 — Basic">
+          <option value="addition.s">Addition & Subtraction</option>
+          <option value="data_transfer.s">Data Transfer & Addressing</option>
         </optgroup>
-        <optgroup label="Math">
-          <option value="factorial.s">Factorial</option>
-          <option value="lcm_gcd.s">LCM and GCD</option>
-          <option value="min_max.s">Min and Max</option>
+        <optgroup label="Group 2 — Math">
+          <option value="factorial.s">Factorial (Recursion)</option>
+          <option value="lcm_gcd.s">GCD & LCM</option>
+          <option value="min_max.s">Min / Max of Array</option>
         </optgroup>
-        <optgroup label="String & Array">
-          <option value="hello_world.s">Hello World</option>
-          <option value="sort.s">Sort</option>
+        <optgroup label="Group 3 — String & Array">
+          <option value="hello_world.s">Hello World (String Print)</option>
+          <option value="sort.s">Bubble Sort</option>
         </optgroup>
-        <optgroup label="Advanced">
-          <option value="macro.s">Macros</option>
+        <optgroup label="Group 4 — Advanced">
+          <option value="macro.s">Macro Example</option>
           <option value="interrupt.s">Interrupts</option>
         </optgroup>
       </select>

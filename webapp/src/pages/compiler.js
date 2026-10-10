@@ -2,6 +2,11 @@ import React, { useState, useContext, useRef, useEffect } from "react";
 import { CustomThemeContext } from "../themes/CustomThemeProvider";
 import { useEmulator } from "../context/EmulatorContext";
 import ExamplesDropdown from "../components/ExamplesDropdown";
+import HistoryTimeline from "../components/HistoryTimeline";
+import ExplanationBar from "../components/ExplanationBar";
+import SpeedControl from "../components/SpeedControl";
+import ALUPanel from "../components/ALUPanel";
+import ExportButton from "../components/ExportButton";
 // Ace Editor
 import AceEditor from "react-ace";
 import "ace-builds/src-noconflict/mode-assembly_x86";
@@ -10,7 +15,6 @@ import "ace-builds/src-noconflict/theme-twilight";
 // Material UI
 import Button from "@material-ui/core/Button";
 import Typography from "@material-ui/core/Typography";
-import Grid from "@material-ui/core/Grid";
 import Textfield from "@material-ui/core/TextField";
 import Table from "@material-ui/core/Table";
 import TableBody from "@material-ui/core/TableBody";
@@ -35,7 +39,6 @@ import { useSpeechSynthesis } from "react-speech-kit";
 // Images
 import help from "../images/help.png";
 import { ReactComponent as DownloadButton } from "../images/download.svg";
-import { ReactComponent as Examples } from "../images/examples.svg";
 import { ReactComponent as CopyIcon } from "../images/copy.svg";
 import { ReactComponent as AccessibilityIcon } from "../images/accessibility.svg";
 import AntSwitch from "../components/switch";
@@ -154,7 +157,6 @@ function Compiler(props) {
     pushSnapshot,
     stepBack,
     stepForward,
-    setSpeed,
     resetHistory,
   } = useEmulator();
 
@@ -233,6 +235,149 @@ function Compiler(props) {
     clearInterval(intervalHandler);
     intervalHandler = null;
   };
+
+  const [changedRegs, setChangedRegs] = useState({});
+  const [changedFlags, setChangedFlags] = useState({});
+  const [highlightedMem, setHighlightedMem] = useState(new Set());
+
+  const currentSnapshot = emulatorState && emulatorState.currentIndex >= 0
+    ? emulatorState.history[emulatorState.currentIndex]
+    : null;
+
+  // Flash changed registers and flags
+  useEffect(() => {
+    if (!emulatorState || emulatorState.history.length === 0 || emulatorState.currentIndex < 0) {
+      setChangedRegs({});
+      setChangedFlags({});
+      return;
+    }
+    const idx = emulatorState.currentIndex;
+    const cur = emulatorState.history[idx];
+    const prv = idx > 0 ? emulatorState.history[idx - 1] : null;
+
+    if (cur && prv) {
+      const regDiff = {};
+      if (cur.registers && prv.registers) {
+        const curAX = cur.registers.AX || 0;
+        const prvAX = prv.registers.AX || 0;
+        if ((curAX >> 8) !== (prvAX >> 8)) regDiff.AH = true;
+        if ((curAX & 0xff) !== (prvAX & 0xff)) regDiff.AL = true;
+
+        const curBX = cur.registers.BX || 0;
+        const prvBX = prv.registers.BX || 0;
+        if ((curBX >> 8) !== (prvBX >> 8)) regDiff.BH = true;
+        if ((curBX & 0xff) !== (prvBX & 0xff)) regDiff.BL = true;
+
+        const curCX = cur.registers.CX || 0;
+        const prvCX = prv.registers.CX || 0;
+        if ((curCX >> 8) !== (prvCX >> 8)) regDiff.CH = true;
+        if ((curCX & 0xff) !== (prvCX & 0xff)) regDiff.CL = true;
+
+        const curDX = cur.registers.DX || 0;
+        const prvDX = prv.registers.DX || 0;
+        if ((curDX >> 8) !== (prvDX >> 8)) regDiff.DH = true;
+        if ((curDX & 0xff) !== (prvDX & 0xff)) regDiff.DL = true;
+
+        ['SP', 'BP', 'SI', 'DI', 'SS', 'DS', 'ES', 'CS', 'IP'].forEach((k) => {
+          if (cur.registers[k] !== prv.registers[k]) {
+            regDiff[k] = true;
+          }
+        });
+      }
+      setChangedRegs(regDiff);
+
+      const flagDiff = {};
+      if (cur.flags && prv.flags) {
+        Object.keys(cur.flags).forEach((k) => {
+          if (cur.flags[k] !== prv.flags[k]) {
+            flagDiff[k] = true;
+          }
+        });
+      }
+      setChangedFlags(flagDiff);
+
+      const timer = setTimeout(() => {
+        setChangedRegs({});
+        setChangedFlags({});
+      }, 1200);
+      return () => clearTimeout(timer);
+    } else if (cur && !prv) {
+      const regDiff = {};
+      if (cur.registers) {
+        const curAX = cur.registers.AX || 0;
+        if ((curAX >> 8) !== 0) regDiff.AH = true;
+        if ((curAX & 0xff) !== 0) regDiff.AL = true;
+
+        const curBX = cur.registers.BX || 0;
+        if ((curBX >> 8) !== 0) regDiff.BH = true;
+        if ((curBX & 0xff) !== 0) regDiff.BL = true;
+
+        const curCX = cur.registers.CX || 0;
+        if ((curCX >> 8) !== 0) regDiff.CH = true;
+        if ((curCX & 0xff) !== 0) regDiff.CL = true;
+
+        const curDX = cur.registers.DX || 0;
+        if ((curDX >> 8) !== 0) regDiff.DH = true;
+        if ((curDX & 0xff) !== 0) regDiff.DL = true;
+
+        ['SP', 'BP', 'SI', 'DI', 'SS', 'DS', 'ES', 'CS', 'IP'].forEach((k) => {
+          if (cur.registers[k] !== 0) regDiff[k] = true;
+        });
+        regDiff.IP = true;
+      }
+      setChangedRegs(regDiff);
+
+      const flagDiff = {};
+      if (cur.flags) {
+        Object.keys(cur.flags).forEach((k) => {
+          if (cur.flags[k]) {
+            flagDiff[k] = true;
+          }
+        });
+      }
+      setChangedFlags(flagDiff);
+
+      const timer = setTimeout(() => {
+        setChangedRegs({});
+        setChangedFlags({});
+      }, 1200);
+      return () => clearTimeout(timer);
+    }
+  }, [emulatorState?.currentIndex, emulatorState?.history.length]);
+
+  // Flash changed memory and auto-scroll startAddress if needed
+  useEffect(() => {
+    if (!emulatorState || emulatorState.currentIndex < 0) {
+      setHighlightedMem(new Set());
+      return;
+    }
+    const cur = emulatorState.history[emulatorState.currentIndex];
+    if (cur && cur.changed_memory && cur.changed_memory.length > 0) {
+      const set = new Set(cur.changed_memory.map((c) => c.address));
+      setHighlightedMem(set);
+
+      // Auto-update Start Address if changed address is not visible
+      const start = parseInt("0x" + startAddress) || 0;
+      const firstChanged = cur.changed_memory[0].address;
+      if (firstChanged < start || firstChanged >= start + MEM_MAX) {
+        const newStart = Math.floor(firstChanged / MEM_MAX) * MEM_MAX;
+        const newStartHex = newStart.toString(16).toUpperCase().padStart(5, "0");
+        setStartAddress(newStartHex);
+        if (driver) {
+          try {
+            const mem = driver.get_mem(newStart, newStart + MEM_MAX - 1);
+            setMemory(convertArray(mem));
+          } catch (e) {}
+        }
+      }
+
+      const timer = setTimeout(() => setHighlightedMem(new Set()), 1500);
+      return () => clearTimeout(timer);
+    } else {
+      setHighlightedMem(new Set());
+    }
+  }, [emulatorState?.currentIndex, emulatorState?.history.length]);
+
   const [saved, setSaved] = useState(false);
 
   let codeEditor = useRef(null);
@@ -447,6 +592,85 @@ function Compiler(props) {
     pf: 0,
     cf: 0,
   });
+
+  const displayRegister = currentSnapshot && currentSnapshot.registers ? {
+    ah: (((currentSnapshot.registers.AX || 0) >> 8) & 0xff).toString(16).padStart(2, '0'),
+    al: ((currentSnapshot.registers.AX || 0) & 0xff).toString(16).padStart(2, '0'),
+    bh: (((currentSnapshot.registers.BX || 0) >> 8) & 0xff).toString(16).padStart(2, '0'),
+    bl: ((currentSnapshot.registers.BX || 0) & 0xff).toString(16).padStart(2, '0'),
+    ch: (((currentSnapshot.registers.CX || 0) >> 8) & 0xff).toString(16).padStart(2, '0'),
+    cl: ((currentSnapshot.registers.CX || 0) & 0xff).toString(16).padStart(2, '0'),
+    dh: (((currentSnapshot.registers.DX || 0) >> 8) & 0xff).toString(16).padStart(2, '0'),
+    dl: ((currentSnapshot.registers.DX || 0) & 0xff).toString(16).padStart(2, '0'),
+    sp: (currentSnapshot.registers.SP !== undefined ? currentSnapshot.registers.SP : 0).toString(16).padStart(4, '0'),
+    bp: (currentSnapshot.registers.BP !== undefined ? currentSnapshot.registers.BP : 0).toString(16).padStart(4, '0'),
+    si: (currentSnapshot.registers.SI !== undefined ? currentSnapshot.registers.SI : 0).toString(16).padStart(4, '0'),
+    di: (currentSnapshot.registers.DI !== undefined ? currentSnapshot.registers.DI : 0).toString(16).padStart(4, '0'),
+    ss: (currentSnapshot.registers.SS !== undefined ? currentSnapshot.registers.SS : 0).toString(16).padStart(4, '0'),
+    ds: (currentSnapshot.registers.DS !== undefined ? currentSnapshot.registers.DS : 0).toString(16).padStart(4, '0'),
+    es: (currentSnapshot.registers.ES !== undefined ? currentSnapshot.registers.ES : 0).toString(16).padStart(4, '0'),
+  } : register;
+
+  const displayFlags = currentSnapshot && currentSnapshot.flags ? {
+    of: currentSnapshot.flags.OF ? 1 : 0,
+    df: currentSnapshot.flags.DF ? 1 : 0,
+    if: currentSnapshot.flags.IF ? 1 : 0,
+    tf: currentSnapshot.flags.TF ? 1 : 0,
+    sf: currentSnapshot.flags.SF ? 1 : 0,
+    zf: currentSnapshot.flags.ZF ? 1 : 0,
+    af: currentSnapshot.flags.AF ? 1 : 0,
+    pf: currentSnapshot.flags.PF ? 1 : 0,
+    cf: currentSnapshot.flags.CF ? 1 : 0,
+  } : flags;
+
+  const displayMemory = React.useMemo(() => {
+    if (!memory || memory.length === 0) return [];
+    if (!emulatorState || emulatorState.currentIndex < 0 || emulatorState.currentIndex >= emulatorState.history.length - 1) {
+      return memory;
+    }
+    const start = parseInt("0x" + startAddress) || 0;
+    const memCopy = memory.map((row) => [...row]);
+    for (let i = emulatorState.history.length - 1; i > emulatorState.currentIndex; i--) {
+      const snap = emulatorState.history[i];
+      if (snap && snap.changed_memory) {
+        for (const cm of snap.changed_memory) {
+          if (cm.address >= start && cm.address < start + MEM_MAX) {
+            const offset = cm.address - start;
+            const r = Math.floor(offset / 16);
+            const c = offset % 16;
+            if (r >= 0 && r < 8 && c >= 0 && c < 16) {
+              memCopy[r][c] = cm.before;
+            }
+          }
+        }
+      }
+    }
+    return memCopy;
+  }, [memory, emulatorState?.currentIndex, emulatorState?.history, startAddress]);
+
+  const handleStepForwardOrNext = () => {
+    if (emulatorState && emulatorState.currentIndex < emulatorState.history.length - 1) {
+      stepForward();
+    } else {
+      executeNext();
+    }
+  };
+
+  const handleStepBack = () => {
+    if (emulatorState && emulatorState.currentIndex > 0) {
+      stepBack();
+    }
+  };
+
+  const handleRun = () => {
+    if (emulatorState && emulatorState.currentIndex < emulatorState.history.length - 1) {
+      while (emulatorState.currentIndex < emulatorState.history.length - 1) {
+        stepForward();
+      }
+    }
+    runCode();
+  };
+
   const [code, setCode] = useState(
     localStorage.getItem("x86code") ||
     `; Program to show use of interrupts
@@ -542,7 +766,10 @@ int 0x10                ; BIOS interrupt`
     resetHistory();
     if (props.wasm) {
       try {
-        let driver = props.wasm.preprocess(code);
+        const currentCode = (codeEditor.current && codeEditor.current.editor)
+          ? codeEditor.current.editor.getValue()
+          : code;
+        let driver = props.wasm.preprocess(currentCode);
         setDriver(driver);
         setLine(driver.line);
         //	Compile code here
@@ -558,14 +785,13 @@ int 0x10                ; BIOS interrupt`
           speak({ text: "Compiled Successfully", voice, r })
         }
       } catch (e) {
-        // e is going to be of string type, if it is one returned from rust
-        // if it is an object, or unknown type error,
-        // it may be stack size issue, read README for more info
+        console.error("Compilation error in compile():", e);
         setCompiled(false);
         setHalted(true);
         showSnackbar("Error Occured!");
-        setErrors(e);
-        addAnnotation(e);
+        const errStr = typeof e === "string" ? e : (e.message || String(e));
+        setErrors(errStr);
+        addAnnotation(errStr);
         if (accessibilityMode) {
           const voice = voices[1]
           const r = 2.5;
@@ -902,45 +1128,49 @@ int 0x10                ; BIOS interrupt`
         <h3 className={classes.loadingText}>Compiling</h3>
       </Backdrop>
       <Backdrop className={classes.tutorialBackdrop} open={tutorial}></Backdrop>
-      <Grid container spacing={2}>
-        <Grid item lg={7}>
-          <Grid container spacing={2} className={classes.spaceBelow}>
-            <Grid item lg={4}>
-              <Typography variant="h5" style={{ fontWeight: "800" }}>
-                Code Editor
-              </Typography>
-            </Grid>
-            <Hotkeys
-              keyName="alt+a"
-              onKeyUp={(s, e) => {
-                handleHotkeys(s, e);
-              }}
-              filter={(event) => {
-                return true;
-              }}
-            />
-            <Grid item lg={8} align="right">
-              <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginRight: '10px' }}>
+      <div className="emulator-page">
+        {/* AREA 1: TOOLBAR */}
+        <div className="grid-area-toolbar">
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px' }}>
+              <ExamplesDropdown
+                onSelectExample={(newCode, label) => {
+                  setCode(newCode);
+                  if (codeEditor.current && codeEditor.current.editor) {
+                    codeEditor.current.editor.setValue(newCode, -1);
+                  }
+                  localStorage.setItem("x86code", newCode);
+                  resetHistory();
+                  setCompiled(false);
+                  setHalted(false);
+                  showSnackbar(`Loaded: ${label}`);
+                }}
+              />
+              <SpeedControl />
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', marginRight: '6px' }}>
                 <Tooltip title={<TooltipTitle content={"Accessibility Mode"} cmd={"(Alt+a)"} />} arrow>
-                  <Typography>
+                  <Typography style={{ display: 'flex', alignItems: 'center' }}>
                     <AccessibilityIcon
                       style={{
                         fill: currentTheme === "dark" ? "#ccc" : "black",
+                        marginRight: 4,
                       }}
                     />
                   </Typography>
                 </Tooltip>
                 <AntSwitch checked={accessibilityMode} inputProps={{ 'aria-label': 'Accessibility Mode' }} onChange={handleAccessibilityMode} />
               </div>
-              <Hotkeys
-                keyName="ctrl+shift+1"
-                onKeyUp={(s, e) => {
-                  handleHotkeys(s, e);
-                }}
-                filter={(event) => {
-                  return true;
-                }}
-              />
+
+              {/* Hotkeys */}
+              <Hotkeys keyName="ctrl+shift+1" onKeyUp={(s, e) => handleHotkeys(s, e)} filter={() => true} />
+              <Hotkeys keyName="ctrl+shift+3" onKeyUp={(s, e) => handleHotkeys(s, e)} filter={() => true} />
+              <Hotkeys keyName="ctrl+shift+2" onKeyUp={(s, e) => handleHotkeys(s, e)} filter={() => true} />
+              <Hotkeys keyName="ctrl+shift+4" onKeyUp={(s, e) => handleHotkeys(s, e)} filter={() => true} />
+
+              {/* Compile Button */}
               <Tooltip title={<TooltipTitle content={"Compile"} cmd={"(Ctrl+Shift+1 | Cmd+Shift+1)"} />} enterDelay={1000} arrow>
                 <span>
                   <Button
@@ -957,93 +1187,25 @@ int 0x10                ; BIOS interrupt`
                   </Button>
                 </span>
               </Tooltip>
-              <Popover
-                id={"compile"}
-                open={tutorialStep === 1}
-                anchorEl={compileRef.current}
-                onClose={() => nextTutorial()}
-                onClick={() => nextTutorial()}
-                onKeyUp={(e) => {
-                  if (e.key === "Enter") {
-                    nextTutorial();
-                  }
-                }}
-                anchorOrigin={{
-                  vertical: "bottom",
-                  horizontal: "center",
-                }}
-                transformOrigin={{
-                  vertical: "top",
-                  horizontal: "center",
-                }}
-              >
-                <Typography className={classes.tooltips} component="div">
-                  <b>Step 2</b>
-                  <hr />
-                  Next, Compile the code.
-                </Typography>
-              </Popover>
-              <Hotkeys
-                keyName="ctrl+shift+3"
-                onKeyUp={(s, e) => {
-                  handleHotkeys(s, e);
-                }}
-                filter={(event) => {
-                  return true;
-                }}
-              />
+
+              {/* Run Button */}
               <Tooltip title={<TooltipTitle content={"Run"} cmd={"(Ctrl+Shift+3 | Cmd+Shift+3)"} />} enterDelay={1000} arrow>
                 <span>
                   <Button
                     variant="outlined"
                     aria-describedby={tutorialStep === 2 ? "run" : ""}
                     size="small"
-                    onClick={runCode}
+                    onClick={handleRun}
                     ref={runRef}
                     disabled={!compiled || halted}
-                    className={
-                      compiled && !halted ? classes.runBtn : classes.topBtn
-                    }
+                    className={compiled && !halted ? classes.runBtn : classes.topBtn}
                   >
                     Run
                   </Button>
                 </span>
               </Tooltip>
-              <Popover
-                id={"run"}
-                open={tutorialStep === 2}
-                anchorEl={runRef.current}
-                onClose={() => nextTutorial()}
-                onClick={() => nextTutorial()}
-                onKeyUp={(e) => {
-                  if (e.key === "Enter") {
-                    nextTutorial();
-                  }
-                }}
-                anchorOrigin={{
-                  vertical: "bottom",
-                  horizontal: "center",
-                }}
-                transformOrigin={{
-                  vertical: "top",
-                  horizontal: "center",
-                }}
-              >
-                <Typography className={classes.tooltips} component="div">
-                  <b>Step 3</b>
-                  <hr />
-                  Run the compiled code.
-                </Typography>
-              </Popover>
-              <Hotkeys
-                keyName="ctrl+shift+2"
-                onKeyUp={(s, e) => {
-                  handleHotkeys(s, e);
-                }}
-                filter={(event) => {
-                  return true;
-                }}
-              />
+
+              {/* Step / Next Button */}
               <Tooltip title={<TooltipTitle content={"Next"} cmd={"(Ctrl+Shift+2 | Cmd+Shift+2)"} />} enterDelay={1000} arrow>
                 <span>
                   <Button
@@ -1051,51 +1213,31 @@ int 0x10                ; BIOS interrupt`
                     size="small"
                     ref={singleStepRef}
                     aria-describedby={tutorialStep === 3 ? "single_step" : ""}
-                    onClick={executeNext}
+                    onClick={handleStepForwardOrNext}
                     disabled={!compiled || halted}
-                    className={
-                      compiled && !halted ? classes.nextBtn : classes.topBtn
-                    }
+                    className={compiled && !halted ? classes.nextBtn : classes.topBtn}
                   >
-                    Next
+                    Step
                   </Button>
                 </span>
               </Tooltip>
-              <Popover
-                id={"single_step"}
-                open={tutorialStep === 3}
-                anchorEl={singleStepRef.current}
-                onClose={() => nextTutorial()}
-                onClick={() => nextTutorial()}
-                onKeyUp={(e) => {
-                  if (e.key === "Enter") {
-                    nextTutorial();
-                  }
-                }}
-                anchorOrigin={{
-                  vertical: "bottom",
-                  horizontal: "center",
-                }}
-                transformOrigin={{
-                  vertical: "top",
-                  horizontal: "center",
-                }}
-              >
-                <Typography className={classes.tooltips} component="div">
-                  <b>Step 4</b>
-                  <hr />
-                  Execute the next line of the instruction.
-                </Typography>
-              </Popover>
-              <Hotkeys
-                keyName="ctrl+shift+4"
-                onKeyUp={(s, e) => {
-                  handleHotkeys(s, e);
-                }}
-                filter={(event) => {
-                  return true;
-                }}
-              />
+
+              {/* Prev Button (Step Backward) */}
+              <Tooltip title={<p style={{ textAlign: 'center' }}>Step Backward<br />Revert to previous execution state</p>} enterDelay={1000} arrow>
+                <span>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={handleStepBack}
+                    disabled={!emulatorState || emulatorState.currentIndex <= 0}
+                    className={classes.topBtn}
+                  >
+                    Prev
+                  </Button>
+                </span>
+              </Tooltip>
+
+              {/* Stop Button */}
               <Tooltip title={<TooltipTitle content={"Stop"} cmd={"(Ctrl+Shift+4 | Cmd+Shift+4)"} />} enterDelay={1000} arrow>
                 <span>
                   <Button
@@ -1105,42 +1247,109 @@ int 0x10                ; BIOS interrupt`
                     aria-describedby={tutorialStep === 4 ? "stop" : ""}
                     onClick={stopCode}
                     disabled={!compiled || halted}
-                    className={
-                      compiled && !halted ? classes.stopBtn : classes.topBtn
-                    }
+                    className={compiled && !halted ? classes.stopBtn : classes.topBtn}
                   >
                     Stop
                   </Button>
                 </span>
               </Tooltip>
-              <Popover
-                id={"stop"}
-                open={tutorialStep === 4}
-                anchorEl={stopRef.current}
-                onClose={() => nextTutorial()}
-                onClick={() => nextTutorial()}
-                onKeyUp={(e) => {
-                  if (e.key === "Enter") {
-                    nextTutorial();
-                  }
-                }}
-                anchorOrigin={{
-                  vertical: "bottom",
-                  horizontal: "center",
-                }}
-                transformOrigin={{
-                  vertical: "top",
-                  horizontal: "center",
-                }}
-              >
-                <Typography className={classes.tooltips} component="div">
-                  <b>Step 5</b>
-                  <hr />
-                  Halt the execution.
-                </Typography>
-              </Popover>
-            </Grid>
-          </Grid>
+
+              {/* Reset Button */}
+              <Tooltip title={<p style={{ textAlign: 'center' }}>Reset<br />Re-compile and reset execution to start</p>} enterDelay={1000} arrow>
+                <span>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={compile}
+                    disabled={!props.wasm}
+                    className={classes.topBtn}
+                  >
+                    Reset
+                  </Button>
+                </span>
+              </Tooltip>
+
+              {/* Export Trace Button */}
+              <ExportButton />
+            </div>
+          </div>
+
+          {/* History Mode Warning Banner */}
+          {emulatorState && emulatorState.history.length > 0 && emulatorState.currentIndex < emulatorState.history.length - 1 && (
+            <div className="step-back-warning">
+              <span>⚠️</span>
+              <span>
+                Viewing step {emulatorState.currentIndex + 1} of {emulatorState.history.length} (history mode). Press Run or Step to continue from here.
+              </span>
+            </div>
+          )}
+
+          {/* Tutorial Popovers for Buttons */}
+          <Popover
+            id={"compile"}
+            open={tutorialStep === 1}
+            anchorEl={compileRef.current}
+            onClose={() => nextTutorial()}
+            onClick={() => nextTutorial()}
+            onKeyUp={(e) => { if (e.key === "Enter") nextTutorial(); }}
+            anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+            transformOrigin={{ vertical: "top", horizontal: "center" }}
+          >
+            <Typography className={classes.tooltips} component="div">
+              <b>Step 2</b><hr />Next, Compile the code.
+            </Typography>
+          </Popover>
+          <Popover
+            id={"run"}
+            open={tutorialStep === 2}
+            anchorEl={runRef.current}
+            onClose={() => nextTutorial()}
+            onClick={() => nextTutorial()}
+            onKeyUp={(e) => { if (e.key === "Enter") nextTutorial(); }}
+            anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+            transformOrigin={{ vertical: "top", horizontal: "center" }}
+          >
+            <Typography className={classes.tooltips} component="div">
+              <b>Step 3</b><hr />Run the compiled code.
+            </Typography>
+          </Popover>
+          <Popover
+            id={"single_step"}
+            open={tutorialStep === 3}
+            anchorEl={singleStepRef.current}
+            onClose={() => nextTutorial()}
+            onClick={() => nextTutorial()}
+            onKeyUp={(e) => { if (e.key === "Enter") nextTutorial(); }}
+            anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+            transformOrigin={{ vertical: "top", horizontal: "center" }}
+          >
+            <Typography className={classes.tooltips} component="div">
+              <b>Step 4</b><hr />Execute the next line of the instruction.
+            </Typography>
+          </Popover>
+          <Popover
+            id={"stop"}
+            open={tutorialStep === 4}
+            anchorEl={stopRef.current}
+            onClose={() => nextTutorial()}
+            onClick={() => nextTutorial()}
+            onKeyUp={(e) => { if (e.key === "Enter") nextTutorial(); }}
+            anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+            transformOrigin={{ vertical: "top", horizontal: "center" }}
+          >
+            <Typography className={classes.tooltips} component="div">
+              <b>Step 5</b><hr />Halt the execution.
+            </Typography>
+          </Popover>
+        </div>
+
+        {/* AREA 2: EXPLANATION BAR */}
+        <div className="grid-area-expbar">
+          <ExplanationBar />
+        </div>
+
+        {/* AREA 3: CODE EDITOR */}
+        <div className="grid-area-editor">
           <Paper
             ref={editorContainer}
             elevation={5}
@@ -1148,33 +1357,48 @@ int 0x10                ; BIOS interrupt`
               position: "relative",
             }}
           >
-            {/* Download */}
-            <div
-              onClick={() => {
-                downloadCode(code);
-              }}
-              ref={downloadRef}
-              aria-describedby={tutorialStep === 8 ? "download_code" : ""}
-              style={{
-                display: matches ? "none" : "block",
-                flex: 1,
-                fontSize: 18,
-                paddingRight: 10,
-                paddingLeft: 10,
-                marginTop: 10,
-                color: "red",
-                float: "right",
-                cursor: "pointer",
-              }}
-            >
-              <Tooltip title="Download Code" arrow>
-                <DownloadButton
-                  style={{
-                    width: 24,
-                    fill: currentTheme === "dark" ? "#ccc" : "black",
-                  }}
-                />
-              </Tooltip>
+            {/* Editor Header Toolbar (Download, Copy, AutoSave) */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px', borderBottom: '1px solid rgba(128,128,128,0.2)' }}>
+              <Typography variant="subtitle1" style={{ fontWeight: '700' }}>
+                Code Editor
+              </Typography>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {saved && (
+                  <span className="save-icon" style={{ display: 'flex', alignItems: 'center' }}>
+                    <span className="loader"></span>
+                    <span className="loader"></span>
+                    <span className="loader"></span>
+                  </span>
+                )}
+                <div
+                  onClick={() => downloadCode(code)}
+                  ref={downloadRef}
+                  aria-describedby={tutorialStep === 8 ? "download_code" : ""}
+                  style={{ cursor: "pointer", display: 'flex', alignItems: 'center' }}
+                >
+                  <Tooltip title="Download Code" arrow>
+                    <DownloadButton
+                      style={{
+                        width: 20,
+                        fill: currentTheme === "dark" ? "#ccc" : "black",
+                      }}
+                    />
+                  </Tooltip>
+                </div>
+                <div
+                  onClick={copyToClipboard}
+                  style={{ cursor: "pointer", display: 'flex', alignItems: 'center' }}
+                >
+                  <Tooltip title="Copy to Clipboard" arrow>
+                    <CopyIcon
+                      style={{
+                        width: 20,
+                        fill: currentTheme === "dark" ? "#ccc" : "black",
+                      }}
+                    />
+                  </Tooltip>
+                </div>
+              </div>
             </div>
 
             <Popover
@@ -1183,111 +1407,26 @@ int 0x10                ; BIOS interrupt`
               anchorEl={downloadRef.current}
               onClose={() => nextTutorial()}
               onClick={() => nextTutorial()}
-              onKeyUp={(e) => {
-                if (e.key === "Enter") {
-                  nextTutorial();
-                }
-              }}
-              anchorOrigin={{
-                vertical: "bottom",
-                horizontal: "center",
-              }}
-              transformOrigin={{
-                vertical: "top",
-                horizontal: "center",
-              }}
-              style={{
-                display: matches ? "none" : "block",
-              }}
+              onKeyUp={(e) => { if (e.key === "Enter") nextTutorial(); }}
+              anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+              transformOrigin={{ vertical: "top", horizontal: "center" }}
             >
               <Typography className={classes.tooltips} component="div">
-                <b>Step 9</b>
-                <hr />
-                Download Code from here
+                <b>Step 9</b><hr />Download Code from here
               </Typography>
             </Popover>
 
-            {/* Examples */}
-            <a
-              style={{
-                display: matches ? "none" : "block",
-                position: "absolute",
-                top: 55,
-                right: 9,
-                zIndex: 100,
-              }}
-              href="https://github.com/YJDoc2/8086-Emulator/tree/master/examples"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Tooltip title="Example Programs" arrow>
-                <Examples
-                  style={{
-                    width: 25,
-                    fill: currentTheme === "dark" ? "#ccc" : "black",
-                  }}
-                />
-              </Tooltip>
-            </a>
-
-            {/* Copy to Clipboard */}
-            <div
-              onClick={copyToClipboard}
-              style={{
-                display: matches ? "none" : "block",
-                position: "absolute",
-                top: 103,
-                right: 9,
-                zIndex: 100,
-                cursor: "pointer",
-              }}
-            >
-              <Tooltip title="Copy to Clipboard" arrow>
-                <span>
-                  <CopyIcon
-                    style={{
-                      width: 24,
-                      fill: currentTheme === "dark" ? "#ccc" : "black",
-                    }}
-                  />
-                </span>
-              </Tooltip>
-            </div>
-
-            {/* AutoSave */}
-            <div
-              style={{
-                display: matches ? "none" : "flex",
-                position: "absolute",
-                justifyContent: "center",
-                alignItems: "center",
-                bottom: 10,
-                right: 3,
-              }}
-            >
-              {saved && (
-                <span className="save-icon">
-                  <span className="loader"></span>
-                  <span className="loader"></span>
-                  <span className="loader"></span>
-                </span>
-              )}
-            </div>
             <Hotkeys
               keyName="alt+z"
-              onKeyUp={(s, e) => {
-                handleHotkeys(s, e);
-              }}
-              filter={(event) => {
-                return true;
-              }}
+              onKeyUp={(s, e) => handleHotkeys(s, e)}
+              filter={() => true}
             />
             <AceEditor
               ref={codeEditor}
               aria-describedby={tutorialStep === 0 ? "editor" : ""}
               mode="assembly_x86"
-              height="60vh"
-              width="match-parent"
+              height="52vh"
+              width="100%"
               value={code}
               fontSize={14}
               showPrintMargin={false}
@@ -1299,83 +1438,48 @@ int 0x10                ; BIOS interrupt`
               annotations={errorAnnotations}
               readOnly={accessibilityMode}
               onCursorChange={(val, e) => handleTextReader(val, e)}
-              onFocus={(e) => {
-                setEditorFocus(true);
-              }}
-              onBlur={(e) => {
-                setEditorFocus(false)
-              }}
+              onFocus={() => setEditorFocus(true)}
+              onBlur={() => setEditorFocus(false)}
             />
           </Paper>
+
           <Popover
             id={"editor"}
             open={tutorialStep === 0}
             anchorEl={editorContainer.current}
             onClose={() => nextTutorial()}
             onClick={() => nextTutorial()}
-            onKeyUp={(e) => {
-              if (e.key === "Enter") {
-                nextTutorial();
-              }
-            }}
-            anchorOrigin={{
-              vertical: "bottom",
-              horizontal: "center",
-            }}
-            transformOrigin={{
-              vertical: "top",
-              horizontal: "center",
-            }}
+            onKeyUp={(e) => { if (e.key === "Enter") nextTutorial(); }}
+            anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+            transformOrigin={{ vertical: "top", horizontal: "center" }}
           >
             <Typography className={classes.tooltips} component="div">
-              <b>Step 1</b>
-              <hr />
-              Write your Code in the editor.
-              <br />
+              <b>Step 1</b><hr />Write your Code in the editor.<br />
               <b className={classes.keyboardCMD}>Alt+Shift+e</b> to focus on editor.
             </Typography>
           </Popover>
+
           {errors ? (
             <Paper className={classes.error} elevation={4}>
               Errors: <br />
-              {errors}
+              {typeof errors === "string" ? errors : (errors.message || String(errors))}
             </Paper>
           ) : (
             <div>
-              <Hotkeys
-                keyName="ctrl+shift+5"
-                onKeyUp={(s, e) => {
-                  handleHotkeys(s, e);
-                }}
-                filter={(event) => {
-                  return true;
-                }}
-              />
-              <Hotkeys
-                keyName="alt+i"
-                onKeyUp={(s, e) => {
-                  handleHotkeys(s, e);
-                }}
-                filter={(event) => {
-                  return true;
-                }}
-              />
+              <Hotkeys keyName="ctrl+shift+5" onKeyUp={(s, e) => handleHotkeys(s, e)} filter={() => true} />
+              <Hotkeys keyName="alt+i" onKeyUp={(s, e) => handleHotkeys(s, e)} filter={() => true} />
               <Tooltip title={<TooltipTitle content={"Set Input"} cmd={"(Ctrl+Shift+5)"} />} enterDelay={1000}>
                 <Textfield
                   label="Input"
                   fullWidth
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  style={{ marginTop: 10 }}
+                  style={{ marginTop: 8 }}
                   inputRef={inputRef}
                   InputProps={{
                     endAdornment: (
                       <InputAdornment position="end">
-                        <Tooltip
-                          title="Use this to submit your input on runtime"
-                          arrow
-                          placement="right"
-                        >
+                        <Tooltip title="Use this to submit your input on runtime" arrow placement="right">
                           <IconButton onClick={handleInput}>&#10003;</IconButton>
                         </Tooltip>
                       </InputAdornment>
@@ -1389,323 +1493,218 @@ int 0x10                ; BIOS interrupt`
                 multiline
                 fullWidth
                 disabled
+                style={{ marginTop: 6 }}
               />
             </div>
           )}
-        </Grid>
-        <Grid item lg={5} style={matches ? { maxWidth: "100vw" } : null}>
+        </div>
+
+        {/* AREA 4: EXECUTION HISTORY TIMELINE */}
+        <div className="grid-area-history">
+          <HistoryTimeline />
+        </div>
+
+        {/* AREA 5: REGISTERS + FLAGS */}
+        <div className="grid-area-regflags">
           <Popover
             id={"register"}
             open={tutorialStep === 5}
             anchorEl={registerRef.current}
             onClose={() => nextTutorial()}
             onClick={() => nextTutorial()}
-            onKeyUp={(e) => {
-              if (e.key === "Enter") {
-                nextTutorial();
-              }
-            }}
-            anchorOrigin={{
-              vertical: "bottom",
-              horizontal: "center",
-            }}
-            transformOrigin={{
-              vertical: "top",
-              horizontal: "center",
-            }}
+            onKeyUp={(e) => { if (e.key === "Enter") nextTutorial(); }}
+            anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+            transformOrigin={{ vertical: "top", horizontal: "center" }}
           >
             <Typography className={classes.tooltips} component="div">
-              <b>Step 6</b>
-              <hr />
-              Check Registers values here.
+              <b>Step 6</b><hr />Check Registers values here.
             </Typography>
           </Popover>
-          <div ref={registerRef} className={classes.flex}>
-            <Paper elevation={5} style={{ flex: 1 }}>
-              <TableContainer component={Paper} ref={registerRef}>
-                <Table size="small" aria-label="simple table">
+
+          <div ref={registerRef} className={classes.flex} style={{ gap: '8px' }}>
+            {/* General Purpose Registers */}
+            <Paper elevation={3} style={{ flex: 1, minWidth: '120px' }}>
+              <TableContainer component={Paper}>
+                <Table size="small" aria-label="general registers table">
                   <TableHead>
                     <TableRow>
-                      <TableCell
-                        className={classes.tableHead}
-                        style={{ width: "33%" }}
-                      >
-                        Reg
-                      </TableCell>
-                      <TableCell
-                        className={classes.tableHead}
-                        style={{ width: "33%" }}
-                      >
-                        H
-                      </TableCell>
-                      <TableCell
-                        className={classes.tableHead}
-                        style={{ width: "33%" }}
-                      >
-                        L
-                      </TableCell>
+                      <TableCell className={classes.tableHead} style={{ width: "33%" }}>Reg</TableCell>
+                      <TableCell className={classes.tableHead} style={{ width: "33%" }}>H</TableCell>
+                      <TableCell className={classes.tableHead} style={{ width: "33%" }}>L</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     <TableRow>
-                      <TableCell component="th" scope="row">
-                        A
-                      </TableCell>
-                      <TableCell align="right">{register.ah}</TableCell>
-                      <TableCell align="right">{register.al}</TableCell>
+                      <TableCell component="th" scope="row">A</TableCell>
+                      <TableCell align="right" className={changedRegs.AH ? "reg-changed" : ""}>{displayRegister.ah}</TableCell>
+                      <TableCell align="right" className={changedRegs.AL ? "reg-changed" : ""}>{displayRegister.al}</TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableCell component="th" scope="row">
-                        B
-                      </TableCell>
-                      <TableCell align="right">{register.bh}</TableCell>
-                      <TableCell align="right">{register.bl}</TableCell>
+                      <TableCell component="th" scope="row">B</TableCell>
+                      <TableCell align="right" className={changedRegs.BH ? "reg-changed" : ""}>{displayRegister.bh}</TableCell>
+                      <TableCell align="right" className={changedRegs.BL ? "reg-changed" : ""}>{displayRegister.bl}</TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableCell component="th" scope="row">
-                        C
-                      </TableCell>
-                      <TableCell align="right">{register.ch}</TableCell>
-                      <TableCell align="right">{register.cl}</TableCell>
+                      <TableCell component="th" scope="row">C</TableCell>
+                      <TableCell align="right" className={changedRegs.CH ? "reg-changed" : ""}>{displayRegister.ch}</TableCell>
+                      <TableCell align="right" className={changedRegs.CL ? "reg-changed" : ""}>{displayRegister.cl}</TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableCell component="th" scope="row">
-                        D
-                      </TableCell>
-                      <TableCell align="right">{register.dh}</TableCell>
-                      <TableCell align="right">{register.dl}</TableCell>
+                      <TableCell component="th" scope="row">D</TableCell>
+                      <TableCell align="right" className={changedRegs.DH ? "reg-changed" : ""}>{displayRegister.dh}</TableCell>
+                      <TableCell align="right" className={changedRegs.DL ? "reg-changed" : ""}>{displayRegister.dl}</TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>
               </TableContainer>
             </Paper>
-            <Paper
-              elevation={5}
-              className={classes.segmentTable}
-              style={{ flex: 1 }}
-            >
+
+            {/* Segment Registers */}
+            <Paper elevation={3} style={{ flex: 1, minWidth: '100px' }}>
               <TableContainer>
-                <Table size="small" aria-label="simple table">
+                <Table size="small" aria-label="segment registers table">
                   <TableHead className={classes.tableHead}>
                     <TableRow>
-                      <TableCell colSpan={2} className={classes.tableHead}>
-                        Segments
-                      </TableCell>
+                      <TableCell colSpan={2} className={classes.tableHead}>Segments</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     <TableRow>
                       <TableCell component="th" scope="row">
-                        <Tooltip
-                          title="Stack Segment"
-                          arrow
-                          className={classes.cursor}
-                          placement="left"
-                        >
+                        <Tooltip title="Stack Segment" arrow className={classes.cursor} placement="left">
                           <span>SS</span>
                         </Tooltip>
                       </TableCell>
-                      <TableCell align="right">{register.ss}</TableCell>
+                      <TableCell align="right" className={changedRegs.SS ? "reg-changed" : ""}>{displayRegister.ss}</TableCell>
                     </TableRow>
                     <TableRow>
                       <TableCell component="th" scope="row">
-                        <Tooltip
-                          title="Data Segment"
-                          arrow
-                          className={classes.cursor}
-                          placement="left"
-                        >
+                        <Tooltip title="Data Segment" arrow className={classes.cursor} placement="left">
                           <span>DS</span>
                         </Tooltip>
                       </TableCell>
-                      <TableCell align="right">{register.ds}</TableCell>
+                      <TableCell align="right" className={changedRegs.DS ? "reg-changed" : ""}>{displayRegister.ds}</TableCell>
                     </TableRow>
                     <TableRow>
                       <TableCell component="th" scope="row">
-                        <Tooltip
-                          title="Extra Segment"
-                          arrow
-                          className={classes.cursor}
-                          placement="left"
-                        >
+                        <Tooltip title="Extra Segment" arrow className={classes.cursor} placement="left">
                           <span>ES</span>
                         </Tooltip>
                       </TableCell>
-                      <TableCell align="right">{register.es}</TableCell>
+                      <TableCell align="right" className={changedRegs.ES ? "reg-changed" : ""}>{displayRegister.es}</TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>
               </TableContainer>
             </Paper>
-            <Paper elevation={5} style={{ flex: 1 }}>
+
+            {/* Pointer Registers */}
+            <Paper elevation={3} style={{ flex: 1, minWidth: '100px' }}>
               <TableContainer component={Paper}>
-                <Table size="small" aria-label="simple table">
+                <Table size="small" aria-label="pointer registers table">
                   <TableHead>
                     <TableRow>
-                      <TableCell colSpan={2} className={classes.tableHead}>
-                        Pointers
-                      </TableCell>
+                      <TableCell colSpan={2} className={classes.tableHead}>Pointers</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     <TableRow>
                       <TableCell component="th" scope="row">
-                        <Tooltip
-                          title="Stack Pointer"
-                          arrow
-                          className={classes.cursor}
-                          placement="left"
-                        >
+                        <Tooltip title="Stack Pointer" arrow className={classes.cursor} placement="left">
                           <span>SP</span>
                         </Tooltip>
                       </TableCell>
-                      <TableCell align="right">{register.sp}</TableCell>
+                      <TableCell align="right" className={changedRegs.SP ? "reg-changed" : ""}>{displayRegister.sp}</TableCell>
                     </TableRow>
                     <TableRow>
                       <TableCell component="th" scope="row">
-                        <Tooltip
-                          title="Base Pointer"
-                          arrow
-                          className={classes.cursor}
-                          placement="left"
-                        >
+                        <Tooltip title="Base Pointer" arrow className={classes.cursor} placement="left">
                           <span>BP</span>
                         </Tooltip>
                       </TableCell>
-                      <TableCell align="right">{register.bp}</TableCell>
+                      <TableCell align="right" className={changedRegs.BP ? "reg-changed" : ""}>{displayRegister.bp}</TableCell>
                     </TableRow>
                     <TableRow>
                       <TableCell component="th" scope="row">
-                        <Tooltip
-                          title="Source Index"
-                          arrow
-                          className={classes.cursor}
-                          placement="left"
-                        >
+                        <Tooltip title="Source Index" arrow className={classes.cursor} placement="left">
                           <span>SI</span>
                         </Tooltip>
                       </TableCell>
-                      <TableCell align="right">{register.si}</TableCell>
+                      <TableCell align="right" className={changedRegs.SI ? "reg-changed" : ""}>{displayRegister.si}</TableCell>
                     </TableRow>
                     <TableRow>
                       <TableCell component="th" scope="row">
-                        <Tooltip
-                          title="Destination Index"
-                          arrow
-                          className={classes.cursor}
-                          placement="left"
-                        >
+                        <Tooltip title="Destination Index" arrow className={classes.cursor} placement="left">
                           <span>DI</span>
                         </Tooltip>
                       </TableCell>
-                      <TableCell align="right">{register.di}</TableCell>
+                      <TableCell align="right" className={changedRegs.DI ? "reg-changed" : ""}>{displayRegister.di}</TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>
               </TableContainer>
             </Paper>
           </div>
+
+          {/* Flags Table */}
           <TableContainer
             className={classes.flagTable}
             aria-describedby={tutorialStep === 6 ? "flags" : ""}
             ref={flagRef}
             component={Paper}
-            style={matches ? null : { minWidth: 505 }}
+            elevation={3}
+            style={{ marginTop: 10 }}
           >
-            <Table size="small" aria-label="simple table">
+            <Table size="small" aria-label="flags table">
               <TableHead>
                 <TableRow>
-                  <TableCell
-                    component="th"
-                    colSpan="9"
-                    className={classes.tableHead}
-                  >
+                  <TableCell component="th" colSpan="9" className={classes.tableHead}>
                     Flags:
                   </TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell
-                    component="th"
-                    scope="column"
-                    className={classes.cursor}
-                  >
-                    <Tooltip title="Overflow Flag" placement="left" arrow>
+                  <TableCell component="th" scope="column" className={classes.cursor}>
+                    <Tooltip title="Overflow Flag: Set if signed arithmetic overflow occurred (1: Overflow, 0: No overflow)" placement="top" arrow>
                       <span>OF</span>
                     </Tooltip>
                   </TableCell>
-                  <TableCell
-                    component="th"
-                    scope="column"
-                    className={classes.cursor}
-                  >
-                    <Tooltip title="Directional Flag" placement="left" arrow>
+                  <TableCell component="th" scope="column" className={classes.cursor}>
+                    <Tooltip title="Direction Flag: String processing direction (1: Decrement / Down, 0: Increment / Up)" placement="top" arrow>
                       <span>DF</span>
                     </Tooltip>
                   </TableCell>
-                  <TableCell
-                    component="th"
-                    scope="column"
-                    className={classes.cursor}
-                  >
-                    <Tooltip title="Interrupt Flag" placement="left" arrow>
+                  <TableCell component="th" scope="column" className={classes.cursor}>
+                    <Tooltip title="Interrupt Flag: Controls hardware interrupts (1: Enabled, 0: Disabled)" placement="top" arrow>
                       <span>IF</span>
                     </Tooltip>
                   </TableCell>
-                  <TableCell
-                    component="th"
-                    scope="column"
-                    className={classes.cursor}
-                  >
-                    <Tooltip title="Trap Flag" placement="left" arrow>
+                  <TableCell component="th" scope="column" className={classes.cursor}>
+                    <Tooltip title="Trap Flag: Single-step debugging mode (1: Single-step enabled, 0: Normal)" placement="top" arrow>
                       <span>TF</span>
                     </Tooltip>
                   </TableCell>
-                  <TableCell
-                    component="th"
-                    scope="column"
-                    className={classes.cursor}
-                  >
-                    <Tooltip title="Sign Flag" placement="left" arrow>
+                  <TableCell component="th" scope="column" className={classes.cursor}>
+                    <Tooltip title="Sign Flag: Set to most significant bit of result (1: Negative, 0: Positive/Zero)" placement="top" arrow>
                       <span>SF</span>
                     </Tooltip>
                   </TableCell>
-                  <TableCell
-                    component="th"
-                    scope="column"
-                    className={classes.cursor}
-                  >
-                    <Tooltip title="Zero Flag" placement="left" arrow>
+                  <TableCell component="th" scope="column" className={classes.cursor}>
+                    <Tooltip title="Zero Flag: Set if arithmetic/logic result is zero (1: Result is zero, 0: Non-zero)" placement="top" arrow>
                       <span>ZF</span>
                     </Tooltip>
                   </TableCell>
-                  <TableCell
-                    component="th"
-                    scope="column"
-                    className={classes.cursor}
-                  >
-                    <Tooltip
-                      title="Auxiliary Carry Flag"
-                      placement="left"
-                      arrow
-                    >
+                  <TableCell component="th" scope="column" className={classes.cursor}>
+                    <Tooltip title="Auxiliary Carry Flag: Carry from bit 3 to bit 4 for BCD (1: Aux carry, 0: None)" placement="top" arrow>
                       <span>AF</span>
                     </Tooltip>
                   </TableCell>
-                  <TableCell
-                    component="th"
-                    scope="column"
-                    className={classes.cursor}
-                  >
-                    <Tooltip title="Parity Flag" placement="left" arrow>
+                  <TableCell component="th" scope="column" className={classes.cursor}>
+                    <Tooltip title="Parity Flag: Set if low byte has even number of 1s (1: Even parity, 0: Odd parity)" placement="top" arrow>
                       <span>PF</span>
                     </Tooltip>
                   </TableCell>
-                  <TableCell
-                    component="th"
-                    scope="column"
-                    className={classes.cursor}
-                  >
-                    <Tooltip title="Carry Flag" placement="left" arrow>
+                  <TableCell component="th" scope="column" className={classes.cursor}>
+                    <Tooltip title="Carry Flag: Unsigned arithmetic carry or borrow (1: Carry/Borrow, 0: None)" placement="top" arrow>
                       <span>CF</span>
                     </Tooltip>
                   </TableCell>
@@ -1713,77 +1712,32 @@ int 0x10                ; BIOS interrupt`
               </TableHead>
               <TableBody>
                 <TableRow>
-                  <TableCell
-                    align="center"
-                    component="th"
-                    scope="row"
-                    className={classes.flag}
-                  >
-                    {flags.of}
+                  <TableCell align="center" component="th" scope="row" className={`${classes.flag} ${changedFlags.OF ? "flag-changed" : ""}`}>
+                    {displayFlags.of}
                   </TableCell>
-                  <TableCell
-                    align="center"
-                    component="th"
-                    scope="row"
-                    className={classes.flag}
-                  >
-                    {flags.df}
+                  <TableCell align="center" component="th" scope="row" className={`${classes.flag} ${changedFlags.DF ? "flag-changed" : ""}`}>
+                    {displayFlags.df}
                   </TableCell>
-                  <TableCell
-                    align="center"
-                    component="th"
-                    scope="row"
-                    className={classes.flag}
-                  >
-                    {flags.if}
+                  <TableCell align="center" component="th" scope="row" className={`${classes.flag} ${changedFlags.IF ? "flag-changed" : ""}`}>
+                    {displayFlags.if}
                   </TableCell>
-                  <TableCell
-                    align="center"
-                    component="th"
-                    scope="row"
-                    className={classes.flag}
-                  >
-                    {flags.tf}
+                  <TableCell align="center" component="th" scope="row" className={`${classes.flag} ${changedFlags.TF ? "flag-changed" : ""}`}>
+                    {displayFlags.tf}
                   </TableCell>
-                  <TableCell
-                    align="center"
-                    component="th"
-                    scope="row"
-                    className={classes.flag}
-                  >
-                    {flags.sf}
+                  <TableCell align="center" component="th" scope="row" className={`${classes.flag} ${changedFlags.SF ? "flag-changed" : ""}`}>
+                    {displayFlags.sf}
                   </TableCell>
-                  <TableCell
-                    align="center"
-                    component="th"
-                    scope="row"
-                    className={classes.flag}
-                  >
-                    {flags.zf}
+                  <TableCell align="center" component="th" scope="row" className={`${classes.flag} ${changedFlags.ZF ? "flag-changed" : ""}`}>
+                    {displayFlags.zf}
                   </TableCell>
-                  <TableCell
-                    align="center"
-                    component="th"
-                    scope="row"
-                    className={classes.flag}
-                  >
-                    {flags.af}
+                  <TableCell align="center" component="th" scope="row" className={`${classes.flag} ${changedFlags.AF ? "flag-changed" : ""}`}>
+                    {displayFlags.af}
                   </TableCell>
-                  <TableCell
-                    align="center"
-                    component="th"
-                    scope="row"
-                    className={classes.flag}
-                  >
-                    {flags.pf}
+                  <TableCell align="center" component="th" scope="row" className={`${classes.flag} ${changedFlags.PF ? "flag-changed" : ""}`}>
+                    {displayFlags.pf}
                   </TableCell>
-                  <TableCell
-                    align="center"
-                    component="th"
-                    scope="row"
-                    className={classes.flag}
-                  >
-                    {flags.cf}
+                  <TableCell align="center" component="th" scope="row" className={`${classes.flag} ${changedFlags.CF ? "flag-changed" : ""}`}>
+                    {displayFlags.cf}
                   </TableCell>
                 </TableRow>
               </TableBody>
@@ -1796,124 +1750,116 @@ int 0x10                ; BIOS interrupt`
             anchorEl={flagRef.current}
             onClose={() => nextTutorial()}
             onClick={() => nextTutorial()}
-            onKeyUp={(e) => {
-              if (e.key === "Enter") {
-                nextTutorial();
-              }
-            }}
-            anchorOrigin={{
-              vertical: "bottom",
-              horizontal: "center",
-            }}
-            transformOrigin={{
-              vertical: "top",
-              horizontal: "center",
-            }}
+            onKeyUp={(e) => { if (e.key === "Enter") nextTutorial(); }}
+            anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+            transformOrigin={{ vertical: "top", horizontal: "center" }}
           >
             <Typography className={classes.tooltips} component="div">
-              <b>Step 7</b>
-              <hr />
-              Check flags here
+              <b>Step 7</b><hr />Check flags here
             </Typography>
           </Popover>
-          <br />
-          <Grid container>
-            <Grid item lg={5} md={12} sm={12} xs={12}>
-              <Typography variant="h5"> Memory </Typography>
-            </Grid>
-            <Hotkeys
-              keyName="ctrl+shift+6"
-              onKeyUp={(s, e) => {
-                handleHotkeys(s, e);
-              }}
-            />
-            <Grid item lg={5} md={8}>
+        </div>
+
+        {/* AREA 6: ALU PANEL */}
+        <div className="grid-area-alupanel">
+          <ALUPanel />
+        </div>
+
+        {/* AREA 7: MEMORY VIEWER (RAM) */}
+        <div className="grid-area-memory">
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Typography variant="h6" style={{ fontWeight: 700 }}> Memory </Typography>
+              {highlightedMem.size > 0 && (
+                <span
+                  style={{
+                    backgroundColor: "#f59e0b",
+                    color: "#000",
+                    fontSize: "12px",
+                    fontWeight: "bold",
+                    padding: "2px 8px",
+                    borderRadius: "12px",
+                  }}
+                >
+                  {highlightedMem.size} cell{highlightedMem.size > 1 ? "s" : ""} changed
+                </span>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Hotkeys keyName="ctrl+shift+6" onKeyUp={(s, e) => handleHotkeys(s, e)} />
               <Tooltip title={<TooltipTitle content={"Start Address"} cmd={"(Ctrl+Shift+6)"} />} enterDelay={1000}>
                 <Textfield
                   inputRef={startAddressRef}
-                  style={matches ? { marginTop: 20 } : { top: -4 }}
                   error={!!addressError}
                   size="small"
                   value={startAddress}
                   label="Start Address"
-                  onChange={(e) => {
-                    validateAndSetAddress(e.target.value.toUpperCase());
-                  }}
+                  onChange={(e) => validateAndSetAddress(e.target.value.toUpperCase())}
                   helperText={addressError}
                   className={classes.textF}
                   placeholder="Start Address"
                 />
               </Tooltip>
-            </Grid>
-            <Grid item lg={2} md={4} style={matches ? { marginTop: 20 } : null}>
-              <Hotkeys
-                keyName="ctrl+shift+7"
-                onKeyUp={(s, e) => {
-                  handleHotkeys(s, e);
-                }}
-                filter={(event) => {
-                  return true;
-                }}
-              />
+
+              <Hotkeys keyName="ctrl+shift+7" onKeyUp={(s, e) => handleHotkeys(s, e)} filter={() => true} />
               <Tooltip title={<TooltipTitle content={"Set the starting address for the below memory table"} cmd={"(Ctrl+Shift+7)"} />}>
-                <Button variant="outlined" size="large" onClick={saveAddress}>
+                <Button variant="outlined" size="small" onClick={saveAddress}>
                   Set
                 </Button>
               </Tooltip>
-            </Grid>
-          </Grid>
-          <Paper elevation={5}>
+            </div>
+          </div>
+
+          <Paper elevation={4}>
             <TableContainer
               className={classes.ramTable}
               ref={ramRef}
               aria-describedby={tutorialStep === 7 ? "ram" : ""}
               component={Paper}
             >
-              <Table padding="none" size="small" aria-label="simple table">
+              <Table padding="none" size="small" aria-label="ram memory table">
                 <TableBody>
-                  {memory.map((row, index1) => (
+                  {displayMemory.map((row, index1) => (
                     <TableRow key={index1}>
-                      {row.map((item, index2) => (
-                        <TableCell align="center" key={index2}>
-                          {item.toString(16).length === 1 ? "0" : ""}
-                          {item.toString(16)}
-                        </TableCell>
-                      ))}
+                      {row.map((item, index2) => {
+                        const startNum = parseInt("0x" + startAddress) || 0;
+                        const cellAddr = startNum + index1 * 16 + index2;
+                        const isChanged = highlightedMem.has(cellAddr);
+                        const hexVal = (item || 0).toString(16).padStart(2, "0").toUpperCase();
+                        return (
+                          <TableCell
+                            align="center"
+                            key={index2}
+                            className={`mem-cell ${isChanged ? "mem-changed" : ""}`}
+                          >
+                            {hexVal}
+                          </TableCell>
+                        );
+                      })}
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </TableContainer>
           </Paper>
+
           <Popover
             id={"ram"}
             open={tutorialStep === 7}
             anchorEl={ramRef.current}
             onClose={() => nextTutorial()}
             onClick={() => nextTutorial()}
-            onKeyUp={(e) => {
-              if (e.key === "Enter") {
-                nextTutorial();
-              }
-            }}
-            anchorOrigin={{
-              vertical: "bottom",
-              horizontal: "center",
-            }}
-            transformOrigin={{
-              vertical: "top",
-              horizontal: "center",
-            }}
+            onKeyUp={(e) => { if (e.key === "Enter") nextTutorial(); }}
+            anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+            transformOrigin={{ vertical: "top", horizontal: "center" }}
           >
             <Typography className={classes.tooltips} component="div">
-              <b>Step 8</b>
-              <hr />
-              Check RAM Memory here. You can also adjust the memory locations
-              with the text field
+              <b>Step 8</b><hr />Check RAM Memory here. You can also adjust the memory locations with the text field
             </Typography>
           </Popover>
-        </Grid>
-      </Grid>
+        </div>
+      </div>
     </div>
   );
 }
