@@ -17,7 +17,7 @@ module.exports = function override(config, env) {
   // add a dedicated loader for WASM
   config.module.rules.push({
     test: wasmExtensionRegExp,
-    include: path.resolve(__dirname, 'src'),
+    type: 'javascript/auto',
     use: [{ loader: require.resolve('wasm-loader'), options: {} }],
   });
 
