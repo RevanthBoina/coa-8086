@@ -1,5 +1,6 @@
 import React, { useState, useContext, useRef, useEffect } from "react";
 import { CustomThemeContext } from "../themes/CustomThemeProvider";
+import { useEmulator } from "../context/EmulatorContext";
 // Ace Editor
 import AceEditor from "react-ace";
 import "ace-builds/src-noconflict/mode-assembly_x86";
@@ -147,23 +148,47 @@ let outputHolder = "";
 //Compiler Page
 function Compiler(props) {
   const matches = useMediaQuery("(max-width:1024px)");
+  const {
+    state: emulatorState,
+    pushSnapshot,
+    stepBack,
+    stepForward,
+    setSpeed,
+    resetHistory,
+  } = useEmulator();
+
+  const speedRef = useRef(emulatorState ? emulatorState.speed : 800);
+  useEffect(() => {
+    if (emulatorState) {
+      speedRef.current = emulatorState.speed;
+    }
+  }, [emulatorState?.speed]);
+
   const startIntervalTask = () => {
     if (intervalHandler !== null) {
       return;
     }
+    const currentSpeed = speedRef.current || 800;
     intervalHandler = setInterval(async () => {
       try {
         let res = driver.next();
         setLine(driver.line);
+        try {
+          const rawSnap = driver.get_state_snapshot();
+          const snapshot = JSON.parse(rawSnap);
+          pushSnapshot(snapshot);
+        } catch (snapErr) {
+          console.error("Snapshot capture error in interval:", snapErr);
+        }
         if (res.halt) {
           setCompiled(false);
           setHalted(true);
           showSnackbar("Execution Halted!");
           stopIntervalTask();
           if (accessibilityMode) {
-            const voice = voices[1]
+            const voice = voices[1];
             const r = 2.5;
-            speak({ text: "Execution Halted", voice, r })
+            speak({ text: "Execution Halted", voice, r });
           }
         }
         if (res.int) {
@@ -186,9 +211,9 @@ function Compiler(props) {
               setHalted(true);
               showSnackbar("Please Give input for INT 21");
               if (accessibilityMode) {
-                const voice = voices[1]
+                const voice = voices[1];
                 const r = 2.5;
-                speak({ text: "Please Give input for INT 21", voice, r })
+                speak({ text: "Please Give input for INT 21", voice, r });
               }
             }
           }
@@ -200,7 +225,7 @@ function Compiler(props) {
         setErrors(e);
         stopIntervalTask();
       }
-    }, 500);
+    }, currentSpeed);
   };
 
   const stopIntervalTask = () => {
@@ -513,6 +538,7 @@ int 0x10                ; BIOS interrupt`
     setOutput("");
     clearTimeout();
     outputHolder = "";
+    resetHistory();
     if (props.wasm) {
       try {
         let driver = props.wasm.preprocess(code);
@@ -620,6 +646,13 @@ int 0x10                ; BIOS interrupt`
     try {
       let res = driver.next();
       setLine(driver.line);
+      try {
+        const rawSnap = driver.get_state_snapshot();
+        const snapshot = JSON.parse(rawSnap);
+        pushSnapshot(snapshot);
+      } catch (snapErr) {
+        console.error("Snapshot capture error in step:", snapErr);
+      }
       if (res.halt) {
         setCompiled(false);
         setHalted(true);
