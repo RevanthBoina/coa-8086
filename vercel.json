@@ -1,0 +1,9 @@
+{
+  "installCommand": "if ! command -v cargo >/dev/null 2>&1; then curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y; fi && . \"$HOME/.cargo/env\" && rustup target add wasm32-unknown-unknown && npx wasm-pack build --target web --out-dir pkg && cd webapp && npm ci",
+  "buildCommand": "cd webapp && npm run build",
+  "outputDirectory": "webapp/build",
+  "framework": "create-react-app",
+  "rewrites": [
+    { "source": "/((?!static/|favicon.ico|manifest.json|robots.txt|sitemap.xml|.*\\..*).*)", "destination": "/index.html" }
+  ]
+}

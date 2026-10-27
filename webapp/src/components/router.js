@@ -31,7 +31,7 @@ function RootRouter() {
     }
     load();
   }, []);
-  const invalidRoute = () => <Redirect to="/8086-emulator-web/" />; //This will send user back to homepage
+  const invalidRoute = () => <Redirect to="/" />;
 
   return (
     <Router>
@@ -39,15 +39,15 @@ function RootRouter() {
         <Navbar />
         <div className="App">
           <Switch>
-            <Route exact path="/8086-emulator-web/" component={Home} />
+            <Route exact path="/" component={Home} />
             <Route
               exact
-              path="/8086-emulator-web/compile"
+              path="/compile"
               component={() => <Compiler wasm={wasm} />}
             />
             <Route
               exact
-              path="/8086-emulator-web/help"
+              path="/help"
               component={InstructionSet}
             />
             <Route component={invalidRoute} />
