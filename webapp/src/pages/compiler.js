@@ -35,7 +35,7 @@ import Tooltip from "@material-ui/core/Tooltip";
 // Hotkeys
 import Hotkeys from "react-hot-keys";
 //
-import { useSpeechSynthesis } from "react-speech-kit";
+
 // Images
 import help from "../images/help.png";
 import { ReactComponent as DownloadButton } from "../images/download.svg";
@@ -46,6 +46,33 @@ import AntSwitch from "../components/switch";
 const MEM_MAX = 16 * 8;
 const MB = 1024 * 1024;
 const ALLOWED_ADDRESS_MAX = MB - MEM_MAX - 1; // -1 for zero based
+
+function useNativeSpeechSynthesis() {
+  const [voices, setVoices] = useState([]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return undefined;
+    const updateVoices = () => setVoices(window.speechSynthesis.getVoices());
+    updateVoices();
+    window.speechSynthesis.addEventListener("voiceschanged", updateVoices);
+    return () => window.speechSynthesis.removeEventListener("voiceschanged", updateVoices);
+  }, []);
+
+  const speak = ({ text, voice, r }) => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    const utterance = new SpeechSynthesisUtterance(text);
+    if (voice) utterance.voice = voice;
+    utterance.rate = r || 1;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const cancel = () => {
+    if (typeof window !== "undefined" && window.speechSynthesis) window.speechSynthesis.cancel();
+  };
+
+  return { speak, cancel, voices };
+}
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -691,7 +718,7 @@ int 0x10                ; BIOS interrupt`
   const [editorFocus, setEditorFocus] = useState(false);// To check if editor is in focus
   const [textReader, setTextReader] = useState("");// To store the text that will be spoken
   const [accessibilityMode, setAccessibilityMode] = useState(false);// Check if accessibility mode is on or off
-  const { speak, cancel, voices } = useSpeechSynthesis();//Speech synthesis hook
+  const { speak, cancel, voices } = useNativeSpeechSynthesis();//Speech synthesis hook
 
 
   const addAnnotation = (errorText) => {
