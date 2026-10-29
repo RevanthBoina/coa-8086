@@ -1,3 +1,8 @@
+const crypto = require('crypto');
+const origCreateHash = crypto.createHash;
+crypto.createHash = (algorithm, ...args) =>
+  origCreateHash(algorithm === 'md4' ? 'sha256' : algorithm, ...args);
+
 const path = require('path');
 
 module.exports = function override(config, env) {

@@ -16,12 +16,12 @@ function RootRouter() {
   useEffect(() => {
     async function load() {
       try {
-        const wasm = await import("emulator_8086");
-        if (typeof wasm.default === "function") {
+        const wasmModule = await import("emulator_8086");
+        if (typeof wasmModule.default === "function") {
           const wasmUrl = (process.env.PUBLIC_URL || "") + "/emulator_8086_web_bg.wasm";
-          await wasm.default(wasmUrl);
+          await wasmModule.default(wasmUrl);
         }
-        setWasm(wasm);
+        setWasm(wasmModule);
       } catch (err) {
         console.error(
           `Unexpected error in loadWasm. [Message: ${err.message}]`
@@ -31,7 +31,35 @@ function RootRouter() {
     }
     load();
   }, []);
-  const invalidRoute = () => <Redirect to="/8086-emulator-web/" />; //This will send user back to homepage
+
+  const pUrl = process.env.PUBLIC_URL || "";
+  const defaultRedirect = () => (
+    <Redirect to={pUrl ? `${pUrl}/compile` : "/compile"} />
+  );
+
+  const compilerPaths = Array.from(new Set([
+    "/",
+    "/compile",
+    "/8086-emulator-web/",
+    "/8086-emulator-web/compile",
+    "/coa-8086",
+    "/coa-8086/",
+    "/coa-8086/compile",
+    pUrl,
+    `${pUrl}/`,
+    `${pUrl}/compile`,
+  ].filter(Boolean)));
+
+  const helpPaths = Array.from(new Set([
+    "/help",
+    "/instructions",
+    "/8086-emulator-web/help",
+    "/8086-emulator-web/instructions",
+    "/coa-8086/help",
+    "/coa-8086/instructions",
+    `${pUrl}/help`,
+    `${pUrl}/instructions`,
+  ].filter(Boolean)));
 
   return (
     <Router>
@@ -39,18 +67,18 @@ function RootRouter() {
         <Navbar />
         <div className="App">
           <Switch>
-            <Route exact path="/8086-emulator-web/" component={Home} />
+            <Route exact path="/8086-emulator-web/home" component={Home} />
             <Route
               exact
-              path="/8086-emulator-web/compile"
+              path={compilerPaths}
               component={() => <Compiler wasm={wasm} />}
             />
             <Route
               exact
-              path="/8086-emulator-web/help"
+              path={helpPaths}
               component={InstructionSet}
             />
-            <Route component={invalidRoute} />
+            <Route component={defaultRedirect} />
           </Switch>
         </div>
       </div>

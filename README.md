@@ -1,109 +1,98 @@
-# Emulator 8086 Web
+# 8086 Learning Lab
 
-Web interface for 8086 emulator [https://yjdoc2.github.io/8086-emulator-web](https://yjdoc2.github.io/8086-emulator-web)
+> **Write assembly. Step through execution. Understand the CPU.**
 
-The core library of interpreter and Emulator written in Rust is at : [https://github.com/YJDoc2/8086-Emulator](https://github.com/YJDoc2/8086-Emulator)
+An interactive, educational 8086 CPU execution workspace designed for Computer Organization & Architecture (COA) students and learners.
 
-![Webverion GIF](./webversion.gif)
+Repository: [https://github.com/RevanthBoina/coa-8086](https://github.com/RevanthBoina/coa-8086)  
+Upstream Engine: [https://github.com/YJDoc2/8086-Emulator](https://github.com/YJDoc2/8086-Emulator)
 
-We got the initial idea for the web interface from [https://schweigi.github.io/assembler-simulator/](https://schweigi.github.io/assembler-simulator/)
+---
 
-## Note
+## 🎯 Educational Overview & Scope
 
-This is a Intel 8086 Emulator, providing a way to run programs written for 8086 assembly instruction set. This internally stores data in the emulated "memory" of 1 MB size, but the code is not compiled to binary or stored in memory. Assembly statements are executed using an interpreter, which operates on the memory and architecture (registers, flags etc.) to emulate execution of the program.
+**8086 Learning Lab** turns assembly programming into a transparent learning loop: **write → prepare → step → observe changes → understand why → review history**.
 
-As this does not have a 'True' memory, this does not allow jumps to memory positions, and Does not support ISRs, as ISR requires the code to be stored in memory as well.
+### Key Architectural Notes
+- **Educational Interpreter:** This workspace is an educational assembly interpreter and visual emulator. Assembly code is parsed, validated, and interpreted rather than assembled into binary machine code.
+- **Execution Position:** The displayed execution position represents the interpreter's source line and instruction sequence index.
+- **CPU Registers & Radix:** Inspect 16-bit registers (AX, BX, CX, DX, SP, BP, SI, DI, CS, DS, SS, ES) and 8-bit aliases (AH, AL, BH, BL, CH, CL, DH, DL) in **HEX**, unsigned/signed **DEC**, and **BIN** formats.
+- **Status Flags:** Clear distinction between active flag state and transitions (CF, ZF, SF, OF, PF, AF, DF, IF, TF). Value 1 does not imply changed; transitions are explicitly tracked.
+- **Read-Only History:** Step backward to inspect past states without corrupting live CPU execution.
+- **ALU Breakdown:** Verified breakdown for ADD, SUB, CMP, AND, OR, XOR, INC, DEC, NOT, and MUL/DIV with implicit operands. Unsupported or complex memory operations explicitly report "Detailed breakdown unavailable" rather than guessing zeroes.
+- **Memory & Stack Inspectors:** 20-bit physical address derivation `(Segment × 16 + Offset) & 0xFFFFF` with 16-byte/row RAM view and word-aligned little-endian stack inspector.
+- **Trace Export:** Export execution traces in formatted Text, versioned JSON (schema 1.0.0), or formula-safe CSV.
 
-This also does not emulate external devices like storage, or co-processors, but allows almost all instructions that 8086 support.
+---
 
-Most of the assembly syntax is same as Intel assembly syntax, with few minor changes, which are documented under respective instructions in the instruction set page of website.
+## 🚀 Quick Start Guide
 
-## Building
+### Prerequisites
+- **Node.js:** v18+ or v20+
+- **Rust toolchain:** `rustc`, `cargo`, `wasm-pack` (if building WASM from source)
 
-To build install Rust and wasm-pack as instructed in https://rustwasm.github.io/docs/book/game-of-life/setup.html.
+### Building and Running
+1. **Build the WASM Driver (if modifying Rust engine):**
+   ```sh
+   wasm-pack build --target web --out-dir pkg
+   ```
+2. **Start the Frontend:**
+   ```sh
+   cd webapp
+   npm install
+   npm start
+   ```
+   The application will open at `http://localhost:3000/8086-emulator-web/compile`.
 
-Note that there is know issue when allocating large size arrays , even on heap in rust :
-https://github.com/rust-lang/rust/issues/53827
-As we are using memory size of 1MB (maybe we should rethink that), and there are already some other objects on stack, this causes 'runtime error: index out of bounds' if compiled normally.
-To overcome this, before compiling, create a folder named `.cargo` in root directory, make a file named `config` and add this :
+3. **Build for Production:**
+   ```sh
+   cd webapp
+   npm run build
+   ```
 
-```TOML
-[target.wasm32-unknown-unknown]
-rustflags = [
-"-C", "link-args=-z stack-size=2000000",
-]
-```
+---
 
-This will allocate default stack size of ~2MB to the wasm, which seems to work fine.
-This is according to : https://github.com/rustwasm/wasm-pack/issues/479
+## ⌨️ Keyboard Shortcuts
 
-We have tried to optimize stack usage by covering various structs in Box instead of allocating on stack, and manually calling std::mem::drop on them once their use is done, but that still causes same issue, so the only choice remaining was to increase the default allocated stack size.
+| Shortcut | Action |
+|---|---|
+| `Ctrl + Enter` | Prepare / Assemble program |
+| `F8` or `Ctrl + Shift + 2` | Step single instruction |
+| `Shift + F8` | View previous recorded step (History) |
+| `Ctrl + Shift + 3` | Run automated execution |
+| `Ctrl + Shift + 4` | Pause execution |
+| `Alt + Z` | Jump to code editor |
 
-After adding above in config, run `wasm-pack build` in root folder of this project, which should build the wasm package and create a folder named `pkg`.
+---
 
-After that change directory to the webapp folder, and run
+## 📁 Repository Structure
 
-```sh
-npm install
-```
-
-which will install all dependencies and link the generated wasm package correctly to the React app.
-
-After that one can run this by running
-
-```sh
-npm run start
-```
-
-which will start the development server on port 3000.
-
-To compile to static html-css-js, run
-
-```sh
-npm run build
-```
-
-which will create the `build` folder, but **NOTE** that to run this one will require a simple server, which can correctly serve all the files with correct MIME type set. (We tried running this by simply using Live Server extension in VS Code, but it seemed that it set MIME type of all files to text/html, due to which they are not accepted by browsers).
-
-## File Structure
-
-```
+```text
 .
-├── src                 ->  the Rust code for the driver
-    ├── driver          ->  code for the Web driver
-    ├── util.rs         -> set up the panic hook for easier debugging
-    └── lib.rs          -> lib file which re-exports driver struct ad public
-├── webapp              -> Folder for React frontend
-    ├── public          -> contain public images and inedx.html
-    └── src             -> contains main source files for React
-        ├── components  -> contains reusable components
-        ├── images      -> contains images and icons used in website
-        ├── pages       -> contains code of main pages of webapp
-        └── themes      -> contains themes for the webapp
-├── Cargo.toml          -> Cargo TOML file
-├── README.md           -> This file
-├── LICENSE-APACHE      -> Licence file
-├── LICENCE-MIT         -> Licence file
-├── syntax.md           -> file containing syntax for the assembler
-└── .gitignore          -> gitignore file for the repository
-
+├── src/                    # Rust WebAssembly driver
+│   ├── driver/             # Driver implementation & state snapshots
+│   ├── util.rs             # Error handling & panic hooks
+│   └── lib.rs              # WASM bindings
+├── webapp/                 # React 17 + Material-UI Frontend
+│   ├── public/             # Static assets and curated assembly examples
+│   └── src/
+│       ├── components/     # UI components (Toolbar, Registers, Flags, Tabs, ALU)
+│       │   └── simulator/  # Modular simulator panels
+│       ├── context/        # EmulatorContext (state, history, cursor)
+│       ├── hooks/          # useExecutionController
+│       ├── services/       # EmulatorAdapter (WASM abstraction)
+│       ├── utils/          # numberFormat, instructionSemantics, traceSelectors
+│       └── pages/          # compiler, home, instructions
+├── Cargo.toml              # Rust configuration
+├── README.md               # Project documentation
+└── verify_all_15.js        # Automated verification script
 ```
 
 ---
 
-## License
+## 📜 License & Attribution
 
-Licensed under either of
-
-- Apache License, Version 2.0
-  ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-- MIT license
-  ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
-
-at your option.
-
-## Contribution
-
-Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
-dual licensed as above, without any additional terms or conditions.
+- Built upon the open-source 8086 web emulator by [YJDoc2](https://github.com/YJDoc2/8086-Emulator).
+- Licensed under either of:
+  - Apache License, Version 2.0 ([LICENSE_APACHE](LICENSE_APACHE))
+  - MIT License ([LICENSE_MIT](LICENSE_MIT))

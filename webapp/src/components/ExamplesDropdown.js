@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export default function ExamplesDropdown({ onSelectExample }) {
+export default function ExamplesDropdown({ onSelectExample, onError }) {
   const [selected, setSelected] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -20,12 +20,20 @@ export default function ExamplesDropdown({ onSelectExample }) {
       if (!res.ok) {
         res = await fetch(`./examples/${val}`);
       }
+      if (!res.ok) {
+        throw new Error(`File ${val} could not be retrieved from example assets (HTTP ${res.status}).`);
+      }
       const code = await res.text();
       if (onSelectExample) {
         onSelectExample(code, label);
       }
     } catch (err) {
       console.error('Failed to load example:', err);
+      if (onError) {
+        onError(`Failed to load example "${label}": ${err.message}`);
+      } else {
+        alert(`Failed to load example "${label}". Please check your network or try another example.`);
+      }
     } finally {
       setLoading(false);
     }

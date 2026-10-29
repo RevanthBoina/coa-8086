@@ -14,7 +14,6 @@ html {
 #footer {
 	width: 100%;
 	margin-top: -37px;
-	/* Footer height */
 }
 
 body {
@@ -96,7 +95,7 @@ body.dark .mem-changed {
   100% { background-color: #1e293b !important; color: inherit; }
 }
 
-/* Step Backward Warning Banner */
+/* Step Backward / History Warning Banner */
 .step-back-warning {
   background: #fef3c7;
   color: #92400e;
@@ -104,7 +103,7 @@ body.dark .mem-changed {
   padding: 8px 14px;
   font-size: 13px;
   font-weight: 500;
-  border-radius: 4px;
+  border-radius: 6px;
   margin-top: 6px;
   display: flex;
   align-items: center;
@@ -119,31 +118,56 @@ body.dark .step-back-warning {
   border: 1px solid #b45309;
 }
 
-/* Phase 5 — Full Layout Restructure (2-Column CSS Grid) */
-.emulator-page {
-  display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-  grid-template-areas:
-    "toolbar    toolbar"
-    "expbar     expbar"
-    "editor     regflags"
-    "history    alupanel"
-    "history    memory";
-  gap: 16px;
-  padding: 12px 16px;
-  box-sizing: border-box;
-  width: 100%;
+/* Needs Preparation Banner */
+.needs-prep-banner {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fcd34d;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.grid-area-toolbar  { grid-area: toolbar; }
-.grid-area-expbar   { grid-area: expbar; }
-.grid-area-editor   { grid-area: editor; }
-.grid-area-history  { grid-area: history; }
-.grid-area-regflags { grid-area: regflags; }
-.grid-area-alupanel { grid-area: alupanel; }
-.grid-area-memory   { grid-area: memory; }
+[data-theme="dark"] .needs-prep-banner {
+  background: #451a03;
+  color: #fde68a;
+  border: 1px solid #92400e;
+}
 
-@media (max-width: 1200px) {
+/* 8086 Learning Lab — Responsive 2-Column Workspace Grid */
+.emulator-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  grid-template-areas:
+    "toolbar     toolbar"
+    "expbar      expbar"
+    "editor      regflags"
+    "inspector   inspector";
+  gap: 16px;
+  padding: 14px 18px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.grid-area-toolbar   { grid-area: toolbar; }
+.grid-area-expbar    { grid-area: expbar; }
+.grid-area-editor    { grid-area: editor; }
+.grid-area-regflags  { grid-area: regflags; }
+.grid-area-inspector { grid-area: inspector; }
+
+/* Keep backwards-compatible grid areas for direct selector tests */
+.grid-area-history   { grid-area: inspector; }
+.grid-area-alupanel  { grid-area: inspector; }
+.grid-area-memory    { grid-area: inspector; }
+
+@media (max-width: 1024px) {
   .emulator-page {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
@@ -151,10 +175,6 @@ body.dark .step-back-warning {
       "expbar"
       "editor"
       "regflags"
-      "alupanel"
-      "history"
-      "memory";
+      "inspector";
   }
 }
-
-
