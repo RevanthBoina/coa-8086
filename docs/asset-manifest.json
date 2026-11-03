@@ -1,0 +1,27 @@
+{
+  "files": {
+    "main.css": "/coa-8086/static/css/main.7b10377d.chunk.css",
+    "main.js": "/coa-8086/static/js/main.950881c3.chunk.js",
+    "main.js.map": "/coa-8086/static/js/main.950881c3.chunk.js.map",
+    "runtime-main.js": "/coa-8086/static/js/runtime-main.2b33cd48.js",
+    "runtime-main.js.map": "/coa-8086/static/js/runtime-main.2b33cd48.js.map",
+    "static/js/2.c20491ab.chunk.js": "/coa-8086/static/js/2.c20491ab.chunk.js",
+    "static/js/2.c20491ab.chunk.js.map": "/coa-8086/static/js/2.c20491ab.chunk.js.map",
+    "static/js/3.b14e7093.chunk.js": "/coa-8086/static/js/3.b14e7093.chunk.js",
+    "static/js/3.b14e7093.chunk.js.map": "/coa-8086/static/js/3.b14e7093.chunk.js.map",
+    "index.html": "/coa-8086/index.html",
+    "static/css/main.7b10377d.chunk.css.map": "/coa-8086/static/css/main.7b10377d.chunk.css.map",
+    "static/js/2.c20491ab.chunk.js.LICENSE.txt": "/coa-8086/static/js/2.c20491ab.chunk.js.LICENSE.txt",
+    "static/media/ExpandIcon.24a740bf.svg": "/coa-8086/static/media/ExpandIcon.24a740bf.svg",
+    "static/media/chip-memory.a1d013a2.svg": "/coa-8086/static/media/chip-memory.a1d013a2.svg",
+    "static/media/copy.570d7c75.svg": "/coa-8086/static/media/copy.570d7c75.svg",
+    "static/media/download.69169a84.svg": "/coa-8086/static/media/download.69169a84.svg",
+    "static/media/home.4b819f10.jpg": "/coa-8086/static/media/home.4b819f10.jpg"
+  },
+  "entrypoints": [
+    "static/js/runtime-main.2b33cd48.js",
+    "static/js/2.c20491ab.chunk.js",
+    "static/css/main.7b10377d.chunk.css",
+    "static/js/main.950881c3.chunk.js"
+  ]
+}
